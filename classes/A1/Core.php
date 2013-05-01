@@ -117,8 +117,8 @@ abstract class A1_Core {
 		if ( is_object($this->_user) && $this->_config['prevent_browser_cache'] === TRUE)
 		{
 			// prevent browser caching of all responses when a user is logged in
-			Request::$initial->response()->headers('Cache-Control', 'no-store, no-cache, must-revalidate, post-check=0, pre-check=0');
-			Request::$initial->response()->headers('Pragma', 'no-cache');
+			Request::$initial->headers('Cache-Control', 'no-store, no-cache, must-revalidate, post-check=0, pre-check=0');
+			Request::$initial->headers('Pragma', 'no-cache');
 		}
 
 		return $this->_user;
@@ -292,6 +292,9 @@ abstract class A1_Core {
 			$last    = isset($user->{$this->_config['columns']['last_attempt']})
 				? $user->{$this->_config['columns']['last_attempt']}
 				: NULL;
+				
+           if ($last instanceof MongoDate)
+               $last = $last->sec;
 
 			if ( $attempt > 1 && ! empty($last))
 			{
