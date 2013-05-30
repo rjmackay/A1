@@ -1,6 +1,6 @@
 <?php defined('SYSPATH') or die('No direct access allowed.');
 /**
- * User AUTHENTICATION module for Kohana PHP Framework using bcrypt
+ * User AUTHENTICATION module for Kohana PHP Framework using bcrypt/password_* fns
  *
  * bcrypt is highly recommended by many to safely store passwords. For more
  * information, see http://codahale.com/how-to-safely-store-a-password/
@@ -14,9 +14,6 @@
  * @license    MIT
  */
 abstract class A1_Core {
-
-	// Allowed salt characters
-	const SALT = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
 
 	protected $_name;
 	protected $_config;
@@ -42,7 +39,7 @@ abstract class A1_Core {
 			$_instances[$_name] = new $_class($_name, $_config);
 		}
 
-		if (CRYPT_BLOWFISH !== 1)
+		if (! defined('PASSWORD_DEFAULT'))
 		{
 			throw new Kohana_Exception('This server does not support bcrypt hashing');
 		}
@@ -319,10 +316,17 @@ abstract class A1_Core {
 				}
 			}
 		}
-
-		return $this->check_password($user, $password)
-			? $this->complete_login($user, $remember)
-			: $this->failed_login($user);
+		
+		if ($this->check_password($user, $password))
+		{
+			$this->_check_password_rehash($user, $password);
+			
+			return $this->complete_login($user, $remember);
+		}
+		else
+		{
+			return $this->failed_login($user);
+		}
 	}
 
 	/**
@@ -381,24 +385,19 @@ abstract class A1_Core {
 	 */
 	public function hash($input, $salt = NULL, $cost = NULL)
 	{
-		if ( ! $salt)
+		$options = array();
+		
+		if ( $salt )
 		{
-			// Generate a random 22 character salt
-			$salt = Text::random(self::SALT, 22);
+			$options['salt'] = $salt;
 		}
-
-		if ( ! $cost)
+		
+		if ( $cost OR $this->_config['cost'] )
 		{
-			$cost = $this->_config['cost'];
+			$options['cost'] = $cost ? $cost : $this->_config['cost'];
 		}
-
-		// Apply 0 padding to the cost, normalize to a range of 4-31
-		$cost = sprintf('%02d', min(31, max($cost, 4)));
-
-		// Create a salt suitable for bcrypt
-		$salt = '$2a$'.$cost.'$'.$salt.'$';
-
-		return crypt($input, $salt);
+		
+		return password_hash($input, $this->_config['algorithm'], $options);
 	}
 
 	/**
@@ -410,14 +409,7 @@ abstract class A1_Core {
 	 */
 	public function check($password, $hash)
 	{
-		// $2a$ (4) 00 (2) $ (1) <salt> (22)
-		preg_match('/^\$2a\$(\d{2})\$(.{22})/D', $hash, $matches);
-
-		// Extract the iterations and salt from the hash
-		$cost = Arr::get($matches, 1);
-		$salt = Arr::get($matches, 2);
-
-		return $this->hash($password, $salt, $cost) === $hash;
+		return password_verify($password, $hash);
 	}
 
 	/**
@@ -495,6 +487,28 @@ abstract class A1_Core {
 	protected function _get_failed_attempts($user)
 	{
 		return $user->{$this->_config['columns']['failed_attempts']};
+	}
+
+	/**
+	 * Returns the number of failed login attempts
+	 *
+	 * @param   object   User object
+	 * @param   string   password
+	 * @return  void
+	 */
+	protected function _check_password_rehash($user, $password)
+	{
+		$options = array();
+		if ( $this->_config['cost'] )
+		{
+			$options['cost'] = $this->_config['cost'];
+		}
+		
+		if (password_needs_rehash($user->{$this->_config['columns']['password']}, $this->_config['algorithm'], $options))
+		{
+			$user->{$this->_config['columns']['password']} = $password; // Automatically rehashed on save
+			$this->_save_user($user);
+		}
 	}
 
 	/**
