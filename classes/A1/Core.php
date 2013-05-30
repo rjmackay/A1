@@ -293,8 +293,10 @@ abstract class A1_Core {
 				? $user->{$this->_config['columns']['last_attempt']}
 				: NULL;
 				
-           if ($last instanceof MongoDate)
-               $last = $last->sec;
+			if ($last instanceof MongoDate)
+			{
+				$last = $last->sec;
+			}
 
 			if ($attempt > 1 AND ! empty($last))
 			{
