@@ -490,7 +490,7 @@ abstract class A1_Core {
 	}
 
 	/**
-	 * Returns the number of failed login attempts
+	 * Check if password needs rehashing
 	 *
 	 * @param   object   User object
 	 * @param   string   password
